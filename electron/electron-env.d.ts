@@ -22,6 +22,19 @@ declare namespace NodeJS {
 }
 
 // Used in Renderer process, expose in `preload.ts`
+// Security: Only window.api is exposed - no direct ipcRenderer access
 interface Window {
-  ipcRenderer: import('electron').IpcRenderer
+  api: {
+    fetch<T = unknown>(
+      url: string,
+      options?: RequestInit
+    ): Promise<{
+      ok: boolean;
+      data?: T;
+      error?: string;
+      status?: number;
+      statusText?: string;
+      headers?: Record<string, string>;
+    }>;
+  };
 }

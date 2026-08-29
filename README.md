@@ -53,6 +53,10 @@ To run the unit tests for the application, run the following command:
 yarn test
 ```
 
+### Security
+
+REQ.IO implements comprehensive Electron security best practices including IPC validation, Content Security Policy, navigation guards, and minimal API surface exposure. See [SECURITY.md](SECURITY.md) for detailed information about our security architecture and threat model.
+
 ### Trivy Vulnerability Scanning
 This project uses [Trivy](https://github.com/aquasecurity/trivy) integrated into the Github Actions pipeline to ensure dependency and container security.
 
