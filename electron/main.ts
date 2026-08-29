@@ -30,6 +30,35 @@ function createWindow() {
     height: 900,
   })
 
+  // Security: Prevent navigation to external URLs
+  win.webContents.on('will-navigate', (event, navigationUrl) => {
+    const parsedUrl = new URL(navigationUrl)
+    const validOrigins: string[] = VITE_DEV_SERVER_URL
+      ? [new URL(VITE_DEV_SERVER_URL).origin, 'file://']
+      : ['file://']
+
+    const isValidNavigation = validOrigins.some(origin =>
+      origin === 'file://' ? parsedUrl.protocol === 'file:' : navigationUrl.startsWith(origin)
+    )
+
+    if (!isValidNavigation) {
+      console.warn('Navigation blocked:', navigationUrl)
+      event.preventDefault()
+    }
+  })
+
+  // Security: Block popup windows and external links
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    console.warn('Blocked attempt to open new window:', url)
+    return { action: 'deny' }
+  })
+
+  // Security: Deny all permission requests (camera, microphone, geolocation, etc.)
+  win.webContents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
+    console.warn('Permission request denied:', permission)
+    callback(false)
+  })
+
   // Test active push message to Renderer-process.
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', (new Date).toLocaleString())
