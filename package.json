@@ -40,7 +40,7 @@
     "@vitejs/plugin-react": "^5.1.0",
     "@vitest/coverage-v8": "^0.34.6",
     "electron": "^39.8.10",
-    "electron-builder": "26.0.12",
+    "electron-builder": "26.15.3",
     "electron-builder-squirrel-windows": "26.0.12",
     "eslint": "^8.48.0",
     "eslint-plugin-react-hooks": "^4.6.0",
