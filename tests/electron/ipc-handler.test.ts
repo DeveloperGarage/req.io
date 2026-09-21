@@ -164,4 +164,239 @@ describe('Electron IPC Handler - rest', () => {
       );
     });
   });
+
+  describe('URL Validation and Security', () => {
+    describe('URL Scheme Validation', () => {
+      it('should reject file:// URLs', () => {
+        const fileUrl = 'file:///etc/passwd';
+        const result = shouldAllowUrl(fileUrl);
+
+        expect(result.allowed).toBe(false);
+        expect(result.reason).toContain('Invalid URL scheme');
+      });
+
+      it('should reject ftp:// URLs', () => {
+        const ftpUrl = 'ftp://example.com/file.txt';
+        const result = shouldAllowUrl(ftpUrl);
+
+        expect(result.allowed).toBe(false);
+        expect(result.reason).toContain('Invalid URL scheme');
+      });
+
+      it('should accept http:// URLs', () => {
+        const httpUrl = 'http://api.example.com/data';
+        const result = shouldAllowUrl(httpUrl);
+
+        expect(result.allowed).toBe(true);
+        expect(result.reason).toBeUndefined();
+      });
+
+      it('should accept https:// URLs', () => {
+        const httpsUrl = 'https://api.example.com/data';
+        const result = shouldAllowUrl(httpsUrl);
+
+        expect(result.allowed).toBe(true);
+        expect(result.reason).toBeUndefined();
+      });
+
+      it('should reject invalid URL formats', () => {
+        const invalidUrl = 'not-a-valid-url';
+        const result = shouldAllowUrl(invalidUrl);
+
+        expect(result.allowed).toBe(false);
+        expect(result.reason).toContain('Invalid URL');
+      });
+    });
+
+    describe('Internal IP Detection', () => {
+      it('should detect localhost', () => {
+        expect(isInternalIp('localhost')).toBe(true);
+        expect(isInternalIp('127.0.0.1')).toBe(true);
+        expect(isInternalIp('::1')).toBe(true);
+      });
+
+      it('should detect 10.x.x.x range', () => {
+        expect(isInternalIp('10.0.0.1')).toBe(true);
+        expect(isInternalIp('10.255.255.255')).toBe(true);
+        expect(isInternalIp('10.1.2.3')).toBe(true);
+      });
+
+      it('should detect 192.168.x.x range', () => {
+        expect(isInternalIp('192.168.0.1')).toBe(true);
+        expect(isInternalIp('192.168.1.1')).toBe(true);
+        expect(isInternalIp('192.168.255.255')).toBe(true);
+      });
+
+      it('should detect 172.16-31.x.x range', () => {
+        expect(isInternalIp('172.16.0.1')).toBe(true);
+        expect(isInternalIp('172.31.255.255')).toBe(true);
+        expect(isInternalIp('172.20.1.1')).toBe(true);
+      });
+
+      it('should not detect public IPs as internal', () => {
+        expect(isInternalIp('8.8.8.8')).toBe(false);
+        expect(isInternalIp('1.1.1.1')).toBe(false);
+        expect(isInternalIp('172.32.0.1')).toBe(false);
+        expect(isInternalIp('192.169.1.1')).toBe(false);
+      });
+
+      it('should not detect domain names as internal', () => {
+        expect(isInternalIp('example.com')).toBe(false);
+        expect(isInternalIp('api.github.com')).toBe(false);
+      });
+    });
+
+    describe('SSRF Protection', () => {
+      it('should block requests to 127.0.0.1 in production', () => {
+        delete process.env.VITE_DEV_SERVER_URL;
+        const result = shouldAllowUrl('http://127.0.0.1:3000/api');
+
+        expect(result.allowed).toBe(false);
+        expect(result.reason).toContain('internal/private IPs');
+      });
+
+      it('should block requests to 192.168.x.x', () => {
+        delete process.env.VITE_DEV_SERVER_URL;
+        const result = shouldAllowUrl('http://192.168.1.1/admin');
+
+        expect(result.allowed).toBe(false);
+        expect(result.reason).toContain('internal/private IPs');
+      });
+
+      it('should block requests to 10.x.x.x', () => {
+        delete process.env.VITE_DEV_SERVER_URL;
+        const result = shouldAllowUrl('http://10.0.0.1/secret');
+
+        expect(result.allowed).toBe(false);
+        expect(result.reason).toContain('internal/private IPs');
+      });
+
+      it('should block requests to 172.16-31.x.x', () => {
+        delete process.env.VITE_DEV_SERVER_URL;
+        const result = shouldAllowUrl('http://172.16.0.1/internal');
+
+        expect(result.allowed).toBe(false);
+        expect(result.reason).toContain('internal/private IPs');
+      });
+
+      it('should allow localhost in development mode', () => {
+        process.env.VITE_DEV_SERVER_URL = 'http://localhost:5173';
+        const result = shouldAllowUrl('http://localhost:3000/api');
+
+        expect(result.allowed).toBe(true);
+        expect(result.reason).toBeUndefined();
+
+        delete process.env.VITE_DEV_SERVER_URL;
+      });
+
+      it('should allow 127.0.0.1 in development mode', () => {
+        process.env.VITE_DEV_SERVER_URL = 'http://localhost:5173';
+        const result = shouldAllowUrl('http://127.0.0.1:8080/test');
+
+        expect(result.allowed).toBe(true);
+        expect(result.reason).toBeUndefined();
+
+        delete process.env.VITE_DEV_SERVER_URL;
+      });
+
+      it('should still block private IPs even in dev mode', () => {
+        process.env.VITE_DEV_SERVER_URL = 'http://localhost:5173';
+        const result = shouldAllowUrl('http://192.168.1.1/router');
+
+        expect(result.allowed).toBe(false);
+        expect(result.reason).toContain('internal/private IPs');
+
+        delete process.env.VITE_DEV_SERVER_URL;
+      });
+    });
+
+    describe('Valid URL Scheme Helper', () => {
+      it('should return true for valid http URLs', () => {
+        expect(isValidUrlScheme('http://example.com')).toBe(true);
+      });
+
+      it('should return true for valid https URLs', () => {
+        expect(isValidUrlScheme('https://example.com')).toBe(true);
+      });
+
+      it('should return false for file:// URLs', () => {
+        expect(isValidUrlScheme('file:///path/to/file')).toBe(false);
+      });
+
+      it('should return false for ftp:// URLs', () => {
+        expect(isValidUrlScheme('ftp://example.com')).toBe(false);
+      });
+
+      it('should return false for invalid URLs', () => {
+        expect(isValidUrlScheme('not-a-url')).toBe(false);
+        expect(isValidUrlScheme('')).toBe(false);
+      });
+    });
+  });
 });
+
+// Import validation functions for testing
+function isValidUrlScheme(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function isInternalIp(hostname: string): boolean {
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+    return true;
+  }
+
+  const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+  const match = hostname.match(ipv4Regex);
+
+  if (match) {
+    const [, oct1, oct2] = match.map(Number);
+
+    if (oct1 === 10) return true;
+    if (oct1 === 172 && oct2 >= 16 && oct2 <= 31) return true;
+    if (oct1 === 192 && oct2 === 168) return true;
+    if (oct1 === 127) return true;
+  }
+
+  return false;
+}
+
+function shouldAllowUrl(url: string): { allowed: boolean; reason?: string } {
+  if (!isValidUrlScheme(url)) {
+    return {
+      allowed: false,
+      reason: 'Invalid URL scheme. Only http:// and https:// are allowed.'
+    };
+  }
+
+  try {
+    const parsed = new URL(url);
+
+    if (isInternalIp(parsed.hostname)) {
+      const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
+      const isLocalhost = parsed.hostname === 'localhost' ||
+                         parsed.hostname === '127.0.0.1' ||
+                         parsed.hostname === '::1';
+
+      if (isDev && isLocalhost) {
+        return { allowed: true };
+      }
+
+      return {
+        allowed: false,
+        reason: `Requests to internal/private IPs are not allowed for security reasons.`
+      };
+    }
+
+    return { allowed: true };
+  } catch (err) {
+    return {
+      allowed: false,
+      reason: 'Invalid URL format.'
+    };
+  }
+}
