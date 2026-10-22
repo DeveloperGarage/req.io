@@ -395,7 +395,7 @@ describe(`AppBody`, () => {
       const expectedBody = { my_key: 'my_value' };
       const expectedHeaders = expect.arrayContaining([
         { key: 'X-Custom-Header', value: 'header-value' },
-        { key: 'Authorization', value: btoa('Basic testuser:testpassword') },
+        { key: 'Authorization', value: `Basic ${btoa('testuser:testpassword')}` },
       ]);
 
       expect(post).toHaveBeenCalledWith(expectedUrl, expectedBody, expectedHeaders);

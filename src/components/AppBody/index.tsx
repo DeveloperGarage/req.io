@@ -89,8 +89,8 @@ const AppBody = () => {
     const consolidatedHeaders = headers.slice();
 
     if (credentials.authType == AuthType.BasicAuth) {
-      const encodedHeaderValue = btoa(`Basic ${credentials.username}:${credentials.password}`);
-      consolidatedHeaders.push({ key: 'Authorization', value: encodedHeaderValue });
+      const encodedHeaderValue = btoa(`${credentials.username}:${credentials.password}`);
+      consolidatedHeaders.push({ key: 'Authorization', value: `Basic ${encodedHeaderValue}` });
     }
 
     if (credentials.authType == AuthType.ApiKey && credentials.key && credentials.value) {
